@@ -1,6 +1,9 @@
 const express = require('express');
-var bodyParser = require('body-parser');
-var exphbs  = require('express-handlebars');
+const bodyParser = require('body-parser');
+const methodOverride = require('method-override');
+const session = require('express-session');
+const flash = require('connect-flash');
+const exphbs  = require('express-handlebars');
 const mongoose = require('mongoose');
 
 const app = express();
@@ -24,6 +27,27 @@ app.set('view engine', 'handlebars');
 // Body Parser Middleware
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
+
+// Override middleware with POST having ?_method=DELETE/?_method=PUT
+app.use(methodOverride('_method'));
+
+// Express Session Middleware
+app.use(session({
+    secret: 'keyboard cat',
+    resave: true,
+    saveUninitialized: true
+  }));
+
+// Connect Flash Middleware
+app.use(flash());
+
+// Global varriaables
+app.use((req, res, next)=>{
+    res.locals.success_msg = req.flash('success_msg');
+    res.locals.error_msg = req.flash('error_msg');
+    res.locals.error = req.flash('error');
+    next();
+})
 
 // Index Route
 app.get('/', (req,res)=>{
@@ -54,6 +78,18 @@ app.get('/ideas/add', (req,res)=>{
     res.render('ideas/add');
 });
 
+// Edit Idea Route
+app.get('/ideas/edit/:id', (req,res)=>{
+    Idea.findOne({
+        _id: req.params.id
+    })
+    .then(idea=>{
+        res.render('ideas/edit',{
+            idea: idea
+        });
+    });  
+});
+
 // Process Form
 app.post('/ideas', (req,res)=>{
     let errors = [];
@@ -79,9 +115,38 @@ app.post('/ideas', (req,res)=>{
         new Idea(newUser)
             .save()
             .then(idea=>{
+                req.flash('success_msg','Videa idea added');
                 res.redirect('/ideas');
             });
     }
+});
+
+// Edit Form Process
+app.put('/ideas/:id', (req,res)=>{
+    Idea.findOne({
+        _id: req.params.id
+    })
+    .then(idea=>{
+        // New Values
+        idea.title = req.body.title;
+        idea.details = req.body.details;
+
+        idea.save(idea=>{
+            req.flash('success_msg','Videa idea updated');
+            res.redirect('/ideas');
+        })
+    })
+});
+
+// Delete Idea
+app.delete('/ideas/:id', (req,res)=>{
+    Idea.deleteOne({
+        _id: req.params.id
+    })
+    .then(()=>{
+        req.flash('success_msg','Videa idea removed');
+        res.redirect('/ideas');
+    });
 });
 
 app.listen(port, ()=>{
